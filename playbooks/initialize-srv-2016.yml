@@ -19,12 +19,12 @@
     ignore_errors: yes
   - name: Copy makewindows10GreatAgain.ps1
     win_copy:
-      src: ./MakeWindows10GreatAgain.ps1
+      src: ./extras/initialize-srv-2016/MakeWindows10GreatAgain.ps1
       dest: C:\ansible\MakeWindows10GreatAgain.ps1
       remote_src: no
   - name: Copy makewindows10GreatAgain.reg
     win_copy:
-      src: ./MakeWindows10GreatAgain.reg
+      src: ./extras/initialize-srv-2016/MakeWindows10GreatAgain.reg
       dest: C:\ansible\MakeWindows10GreatAgain.reg
       remote_src: no
   - name: run_script
