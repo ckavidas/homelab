@@ -1,0 +1,75 @@
+---
+#
+# INITIALIZE SRV 2016 PLAYBOOK
+# - Assumes "wintemplate" is statically defined in your ansible inventory.
+# - Runs the "makewindows10GreatAgain powershell script from detectionlab"
+# - Installs zerotier
+# - Joins the lab network
+# - Changes the IP address of the template VM
+# - Changes the Hostname of the template VM
+- hosts: wintemplate
+  vars:
+     newIP: 10.20.30.220
+     newName: testmachine123
+     zerotierNetwork: 6ab565387a5933a6
+
+  tasks:
+  - name: make folder
+    win_command: cmd.exe /c mkdir c:\ansible
+    ignore_errors: yes
+  - name: Copy makewindows10GreatAgain.ps1
+    win_copy:
+      src: ./MakeWindows10GreatAgain.ps1
+      dest: C:\ansible\MakeWindows10GreatAgain.ps1
+      remote_src: no
+  - name: Copy makewindows10GreatAgain.reg
+    win_copy:
+      src: ./MakeWindows10GreatAgain.reg
+      dest: C:\ansible\MakeWindows10GreatAgain.reg
+      remote_src: no
+  - name: run_script
+    win_shell: c:\ansible\MakeWindows10GreatAgain.ps1
+    register: out
+  - debug: var=out.stdout_lines
+  - name: download zerotier
+    win_get_url:
+      url: https://download.zerotier.com/dist/ZeroTier%20One.msi
+      dest: c:\ansible\zerotier.msi
+  - name: install zerotier
+    win_package:
+      path: c:\ansible\zerotier.msi
+      state: present
+  - name: chk install
+    win_command: wmic product get name
+    register: out
+  - debug: var=out.stdout_lines
+  - name: join zerotier network
+    win_shell: "zerotier-cli join {{ zerotierNetwork }}"
+    register: out
+  - debug: var=out.stdout_lines
+  - name: change IP
+    win_shell: "netsh interface ipv4 set address name='Ethernet' static {{ newIP }} 255.255.255.0 10.20.30.1"
+    async: 100
+    poll: 0
+  - name: change Host
+    set_fact:
+      ansible_host: "{{ newIP }}"
+  - name: wait for change
+    local_action:
+      module: wait_for
+      host: "{{ ansible_host }}"
+      port: 5986
+      delay: 10
+      state: started
+    register: wait_result
+  - name: chk IP
+    win_command: ipconfig
+    register: out
+  - debug: var=out.stdout_lines
+  - name: change hostname
+    win_hostname:
+      name: "{{ newName }}"
+    register: res
+  - name: reboot
+    win_reboot:
+    when: res.reboot_required
