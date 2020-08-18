@@ -3,8 +3,10 @@
 # INITIALIZE SRV 2016 PLAYBOOK
 # - Assumes "wintemplate" is statically defined in your ansible inventory.
 # - Runs the "makewindows10GreatAgain powershell script from detectionlab"
+# - Installs chocolatey and installs firefox/7zip/notepad++
 # - Installs zerotier
 # - Joins the lab network
+# - Installs windows updates
 # - Changes the IP address of the template VM
 # - Changes the Hostname of the template VM
 - hosts: wintemplate
@@ -19,18 +21,33 @@
     ignore_errors: yes
   - name: Copy makewindows10GreatAgain.ps1
     win_copy:
-      src: ./extras/initialize-srv-2016/MakeWindows10GreatAgain.ps1
+      src: ./MakeWindows10GreatAgain.ps1
       dest: C:\ansible\MakeWindows10GreatAgain.ps1
       remote_src: no
   - name: Copy makewindows10GreatAgain.reg
     win_copy:
-      src: ./extras/initialize-srv-2016/MakeWindows10GreatAgain.reg
+      src: ./MakeWindows10GreatAgain.reg
       dest: C:\ansible\MakeWindows10GreatAgain.reg
       remote_src: no
   - name: run_script
     win_shell: c:\ansible\MakeWindows10GreatAgain.ps1
     register: out
   - debug: var=out.stdout_lines
+  - name: Download chocolatey install script
+    win_get_url:
+      url: https://chocolatey.org/install.ps1
+      dest: C:\ansible\chocolateyinstall.ps1
+  - name: run chocolatey install script
+    win_shell: c:\ansible\chocolateyinstall.ps1
+    register: out
+  - debug: var=out.stdout_lines
+  - name: install packages
+    win_chocolatey:
+      name: '{{ item }}'
+      state: present
+    with_items: ['firefox', '7zip.install', 'notepadplusplus.install']
+  - name: make junction link to chocolatey library
+    win_command: cmd.exe /c mklink /J c:\packages c:\ProgramData\chocolatey\lib\
   - name: download zerotier
     win_get_url:
       url: https://download.zerotier.com/dist/ZeroTier%20One.msi
@@ -47,6 +64,9 @@
     win_shell: "zerotier-cli join {{ zerotierNetwork }}"
     register: out
   - debug: var=out.stdout_lines
+  - name: install updates
+    win_updates:
+    register: update_result
   - name: change IP
     win_shell: "netsh interface ipv4 set address name='Ethernet' static {{ newIP }} 255.255.255.0 10.20.30.1"
     async: 100
